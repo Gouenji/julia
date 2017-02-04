@@ -860,7 +860,18 @@ convert(::Type{Dense}, A::Sparse) = sparse_to_dense(A)
 function (::Type{Sparse}){Tv<:VTypes}(m::Integer, n::Integer,
         colptr::Vector{SuiteSparse_long}, rowval::Vector{SuiteSparse_long},
         nzval::Vector{Tv}, stype)
-    # check if columns are sorted
+    # checks
+    ## length of input
+    if length(nzval) != length(rowval)
+        throw(ArgumentError("nzval and rowval must have same length"))
+    end
+    if length(colptr) != n + 1
+        throw(ArgumentError("length of colptr must be n + 1 = $(n + 1) but was $(length(colptr))"))
+    end
+    if colptr[end] != length(rowval)
+        throw(ArgumentError("length of rowval is $(length(rowval)) but value of colptr requires length to be $(colptr[end])"))
+    end
+    ## columns are sorted
     iss = true
     for i = 2:length(colptr)
         if !issorted(view(rowval, colptr[i - 1] + 1:colptr[i]))
@@ -898,6 +909,17 @@ function (::Type{Sparse}){Tv<:VTypes}(m::Integer, n::Integer,
 end
 
 function (::Type{Sparse}){Tv<:VTypes}(A::SparseMatrixCSC{Tv,SuiteSparse_long}, stype::Integer)
+    ## Check length of input. This should never fail but see #20024
+    if length(A.nzval) != length(A.rowval)
+        throw(ArgumentError("nzval and rowval must have same length"))
+    end
+    if length(A.colptr) != size(A,2) + 1
+        throw(ArgumentError("length of colptr must be size(A,2) + 1 = $(size(A,2) + 1) but was $(length(A.colptr))"))
+    end
+    if A.colptr[end] != length(A.rowval) + 1
+        throw(ArgumentError("length of rowval is $(length(A.rowval)) but value of colptr requires length to be $(A.colptr[end] - 1)"))
+    end
+
     o = allocate_sparse(A.m, A.n, length(A.nzval), true, true, stype, Tv)
     s = unsafe_load(o.p)
     for i = 1:length(A.colptr)
